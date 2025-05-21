@@ -1,0 +1,55 @@
+services:
+  api:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    deploy:
+      replicas: 10
+    ports:
+      - "6969:6969"
+    depends_on:
+      - pgbouncer
+
+  pgbouncer:
+    hostname: pgbouncer
+    container_name: pgbouncer
+    image: edoburu/pgbouncer
+    environment:
+      - DATABASES=default=host=postgres dbname=vectors
+      - POOL_MODE=transaction
+      - DEFAULT_POOL_SIZE=200
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    networks:
+      - app_network
+  
+  postgres:
+    hostname: postgres
+    container_name: postgres
+    image: pgvector/pgvector:pg15
+    ports:
+      - 5452:5432
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=vectors
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_vector_data:/var/lib/postgresql/data
+      - ./init_vector_db.sh:/docker-entrypoint-initdb.d/init_vector_db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -p postgres -d vectors"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+volumes:
+  postgres_vector_data:
+
+networks:
+  app_network:
+    driver: bridge
